@@ -1,0 +1,171 @@
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/available-plugins
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+# update_fastlane
+
+# 该文件用来命令行打包，自动pull add_tag ,commit,auto_uplaod 到（testflight,fir.im,pgy）
+# 1. cd 到对应的工程目前下
+# 2.执行对应的命令
+# a.发布到蒲公英： (开发环境)         fastlane pgy
+# b.发布到fir.im：（测试环境）        fastlane fir env:dev/test/prelive/release
+# c.发布到testFlight：(预生产环境）   fastlane tf
+# d.发布到testFlight：(正式环境）     fastlane store
+# f. 同时发布到testflight 和fir.im    fastlane tf_fir
+# e.同时发布到所有环境                fastlane all
+#
+#
+#
+#
+#
+#
+#
+
+
+default_platform(:ios)
+platform :ios do
+  
+  lane :release_ready do
+    UI.message("----------release_ready----------")
+    ensure_git_status_clean ## 确保当前的代码都已经提交完成
+    git_pull
+    increment_build_number # 自增build
+    commit_version_bump # 检查build
+    push_to_git_remote
+  end
+
+
+  lane :release_finsh do
+    UI.message("----------release_finsh----------")
+    
+    push_git_tags
+  end
+
+
+  lane :pgy do
+    UI.message("----------发布一个蒲公英 开发版本----------")
+    release_ready
+
+    sync_code_signing(type: "adhoc")
+    build_app(
+      workspace: "WeTalk.xcworkspace",
+      scheme: "WeTalk",
+      export_method: "ad-hoc",
+      configuration: "Debug",# Debug, Test,Prelive, ,Release
+      silent: true,
+      clean: true,
+    )
+    pgyer(api_key: "you key", user_key: "you key")
+    add_git_tag(tag:"dev/#{get_version_number}(#{get_build_number})")
+
+    release_finsh
+  end
+
+
+  lane :fir do |options|
+    UI.message("----------发布一个fir.im 测试版本----------")
+    release_ready
+    env = options[:env]
+    config = "Test"
+    message = "测试环境"
+    
+    if env == "dev"
+      config = "Debug"
+      message = "开发环境"
+
+    elsif env == "test"
+      config = "Test"
+      message = "测试环境"
+
+    elsif env == "prelive"
+      config = "Prelive"
+      message = "预生产环境"
+
+    elsif env == "release"
+      config = "Release"
+      message = "正式环境"
+    else
+      config = "Test"
+      message = "测试环境"
+    end
+     # 应用下载地址：https://www.pgyer.com/SqEc 下载密码：bmc
+    sync_code_signing(type: "adhoc")
+    build_app(
+      workspace: "WeTalk.xcworkspace",
+      scheme: "WeTalk",
+      export_method: "ad-hoc",
+      configuration: config,
+      silent: true,
+      clean: true,
+    )
+    firim(firim_api_token: "your token",app_changelog:message)
+    add_git_tag(tag:"#{env}/#{get_version_number}(#{get_build_number})")
+
+    release_finsh
+  end
+  
+
+  lane :tf do
+    UI.message("----------发布一个testfligth预生产版本----------")
+    release_ready
+
+    sync_code_signing(type: "appstore")
+    build_app(
+      workspace: "WeTalk.xcworkspace",
+      scheme: "WeTalk",
+      configuration: "Prelive",
+      silent: true,
+      clean: true,
+      changelog:"预生产环境"
+      )
+    upload_to_testflight
+    add_git_tag(tag:"prelive/#{get_version_number}(#{get_build_number})")
+
+    release_finsh
+  end
+  
+  lane :store do
+    UI.message("----------发布一个appStore预生产版本----------")
+    release_ready
+
+    sync_code_signing(type: "appstore")
+    build_app(
+      workspace: "WeTalk.xcworkspace",
+      scheme: "WeTalk",
+      configuration: "Release",
+      silent: true,
+      clean: true,
+      changelog:"正式环境"
+      )
+    upload_to_testflight
+    add_git_tag(tag:"release/#{get_version_number}(#{get_build_number})")
+
+    release_finsh
+  end
+
+
+  lane :tf_fir do
+    UI.message("----------同时发布testFlight 和 fir.im 版本----------")
+    fir # fir.im 测试环境
+    tf # testflight 预生产环境
+  end
+
+
+  lane :all do
+    UI.message("----------发布所有版本----------")
+    pgy # 蒲公英，开发环境
+    fir # fir.im 测试环境
+    tf # testflight 预生产环境
+    store # 正式环境
+  end
+  
+end

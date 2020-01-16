@@ -1,0 +1,76 @@
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/available-plugins
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+# update_fastlane
+
+default_platform(:ios)
+
+platform :ios do
+before_all do
+  UI.message("开始打包")
+  sh "sh  ../spap.sh"
+end
+after_all do
+  UI.message("结束打包")
+end
+  desc "Push a new beta build to TestFlight"
+  lane :beta do |options|
+    tagNum = options[:tag]
+    message = options[:message]
+    rel=options[:release]
+    message = message ? message : "upgrade repo"
+    build = options[:build]
+
+    if build
+      increment_build_number(
+        xcodeproj: "SPAP/SPAP.xcodeproj",
+        build_number: build # set a specific number
+      )
+      elsif 
+        increment_build_number(xcodeproj: "SPAP/SPAP.xcodeproj")
+      end
+
+    # 3、提交本地仓库代码至远程仓库
+  git_add(path: ".")
+  git_commit(path: ".", message: message)
+  push_to_git_remote
+
+# 4、打标签，并提交至远程
+# 先验证tag是否存在，如果存在则删除本地标签和远程标签
+  if git_tag_exists(tag: tagNum)
+    UI.message("您输入的tag:#{tagNum}已存在，即将自动清除") 
+    remove_git_tag(tagNum: tagNum)
+  end
+  add_git_tag(
+    tag: tagNum
+  )
+  push_git_tags
+
+  version = get_version_number(xcodeproj: "SPAP/SPAP.xcodeproj")
+  currentBuild = get_build_number(xcodeproj: "SPAP/SPAP.xcodeproj")
+  today = Time.new.strftime("%Y-%m-%d")
+  currentTime = Time.new.strftime("%H-%M")
+  outputDir = "#{today}"
+  outputName = "SPAP-#{version}-#{currentBuild}-#{currentTime}"
+  gym(scheme: "SPAP",
+    configuration: rel ? "Release" : "Test(Release)",
+    output_directory: "~/Desktop/output_build/#{outputDir}",
+    output_name: "#{outputName}",
+    skip_package_ipa: false,
+    # export_method: "ad-hoc"
+  ) 
+  UI.message ("结束打包")
+  deliver(force: true)
+  UI.message("上传结束")
+  end
+end

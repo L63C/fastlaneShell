@@ -1,0 +1,94 @@
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/available-plugins
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+# update_fastlane
+
+default_platform(:ios)
+
+ENV['MATCH_PASSWORD'] = "123123"
+# ENV["sigh_com.spap.conference_appstore_profile-name"] = ""
+# ENV["FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD"] = ""
+
+platform :ios do
+
+  desc "Push a new release build to the Testflight"
+  lane :beta do |options|
+    # increment_build_number(
+    #   build_number: latest_testflight_build_number + 1,
+    # )
+    increment_build_number()
+
+    message = options[:message]
+    message = message ? message : "upgrade repo"
+    git_add(path: ".")
+    git_commit(path: ".", message: message)
+    push_to_git_remote
+
+    match
+    match(
+      type: "appstore",
+      )
+    build_app(
+      configuration: "Test",
+      # skip_build_archive: true,
+      # archive_path: "",
+      )
+    upload_to_testflight(
+      # skip_waiting_for_build_processing: true,
+    )
+    # slack(message: "Successfully distributed a new beta build")
+  end
+
+  desc "Push a new release build to the App Store"
+  lane :tf do |options|
+    # capture_screenshots
+    # increment_build_number()
+
+    # message = options[:message]
+    # message = message ? message : "upgrade repo"
+    # git_add(path: ".")
+    # git_commit(path: ".", message: message)
+    # push_to_git_remote
+
+    match
+    match(
+      type: "appstore",
+      )
+    build_app()
+    # fastlane deliver --ipa "App.ipa" --submit_for_review
+    # fastlane deliver download_screenshots
+    # fastlane deliver download_metadata
+    # upload_to_app_store(
+    #   # submit_for_review: true,
+    #   # automatic_release: true,
+    #   force: true, # Skip HTMl report verification
+    #   # submission_information({
+    #   #   content_rights_contains_third_party_content: false, #是否包含第三方内容
+    #   #   content_rights_has_rights: true, #是否拥有版权
+    #   #   export_compliance_uses_encryption: false, #是否使用加密功能 (首次提交需要填写此选项)
+    #   #   add_id_info_uses_idfa: false #是否使用idfa
+    #   #   })
+    # )
+  end
+  desc "Push a new adhoc to pgy"
+  lane :pgy do
+    # capture_screenshots
+    increment_build_number()
+    match
+    match(
+      type: "adhoc",
+      )
+    build_app(export_method: "ad-hoc")
+    pgyer(api_key: "you key", user_key: "you key")
+  end
+end
